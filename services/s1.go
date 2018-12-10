@@ -134,4 +134,14 @@ func (s *S1) updateRecord(uuid string, increment int) (rec *Record, err error) {
 }
 
 func (s *S1) deleteRecordHandler(w http.ResponseWriter, r *http.Request) {
+	uuid := urlParam(r, "uuid")
+	if !isValidUUID(uuid) {
+		Error(w, ErrBadRequest)
+	} else if err := s.deleteRecord(uuid); err != nil {
+		Error(w, err)
+	}
+}
+
+func (s *S1) deleteRecord(uuid string) error {
+	return s.collection.Remove(bson.M{"uuid": uuid})
 }
