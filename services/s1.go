@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 
 	mgo "gopkg.in/mgo.v2"
@@ -72,7 +73,9 @@ func (s *S1) putRecords(r io.Reader) (err error) {
 		if err = r.Parse(data); err != nil {
 			//With more time, I would make sure the user of the api
 			//gets a good error message...but right now they'll get http bad request
-			return
+			log.Println(err)
+			continue
+			//Could return here if we want to stop the whole batch...
 		}
 
 		if err = s.collection.Insert(r); err != nil {

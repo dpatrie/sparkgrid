@@ -12,6 +12,7 @@
 - Docker compose for all of it
 - Unique index for UUID in Mongo
 - Better error messages
+- Security between services in general
 - Security for DELETE request in S1
 - Concurency when importing records in PUT method
-
+- Do proper file watching in S2
