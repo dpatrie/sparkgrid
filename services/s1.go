@@ -2,8 +2,8 @@ package services
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"io"
-	"log"
 	"net/http"
 
 	mgo "gopkg.in/mgo.v2"
@@ -31,10 +31,10 @@ func NewS1() (h http.Handler, err error) {
 	s1.collection = s1.sess.DB("spark").C("records")
 
 	h = newRouter([]route{
-		{"PUT", "/api/records", s1.putRecords},
-		{"GET", "/api/records/:uuid", s1.getRecord},
-		{"POST", "/api/records/:uuid", s1.updateRecord},
-		{"DELETE", "/api/records/:uuid", s1.deleteRecord},
+		{"PUT", "/api/records", s1.putRecordsHandler},
+		{"GET", "/api/records/:uuid", s1.getRecordHandler},
+		{"POST", "/api/records/:uuid", s1.updateRecordHandler},
+		{"DELETE", "/api/records/:uuid", s1.deleteRecordHandler},
 	})
 	return
 }
@@ -44,17 +44,15 @@ type S1 struct {
 	collection *mgo.Collection
 }
 
-func (s *S1) putRecords(w http.ResponseWriter, r *http.Request) {
+func (s *S1) putRecordsHandler(w http.ResponseWriter, r *http.Request) {
 	if ct := r.Header.Get("Content-type"); ct != "text/csv" {
 		Error(w, ErrBadRequest)
-	}
-
-	if err := s.putRecordsReader(r.Body); err != nil {
-		Error(w, err)
+	} else if err := s.putRecords(r.Body); err != nil {
+		Error(w, ErrBadRequest, err)
 	}
 }
 
-func (s *S1) putRecordsReader(r io.Reader) (err error) {
+func (s *S1) putRecords(r io.Reader) (err error) {
 	var data []string
 
 	csvr := csv.NewReader(r)
@@ -74,8 +72,7 @@ func (s *S1) putRecordsReader(r io.Reader) (err error) {
 		if err = r.Parse(data); err != nil {
 			//With more time, I would make sure the user of the api
 			//gets a good error message...but right now they'll get http bad request
-			log.Println(err)
-			return ErrBadRequest
+			return
 		}
 
 		if err = s.collection.Insert(r); err != nil {
@@ -86,24 +83,55 @@ func (s *S1) putRecordsReader(r io.Reader) (err error) {
 	return
 }
 
-func (s *S1) getRecord(w http.ResponseWriter, r *http.Request) {
+func (s *S1) getRecordHandler(w http.ResponseWriter, r *http.Request) {
 	uuid := urlParam(r, "uuid")
 	if !isValidUUID(uuid) {
 		Error(w, ErrBadRequest)
-	}
-
-	result := Record{}
-	if err := s.collection.Find(bson.M{"uuid": uuid}).One(&result); err != nil {
-		//TODO: differentiate between not found and other error...n00b in mongo right now
-		log.Println(err)
-		Error(w, ErrNotFound)
+	} else if rec, err := s.findRecord(uuid); err != nil {
+		Error(w, ErrNotFound, err)
 	} else {
-		JSONResponse(w, result)
+		JSONResponse(w, rec)
 	}
 }
 
-func (s *S1) updateRecord(w http.ResponseWriter, r *http.Request) {
+func (s *S1) findRecord(uuid string) (r *Record, err error) {
+	r = &Record{}
+	//TODO: differentiate between not found and other error...n00b in mongo right now
+	err = s.collection.Find(bson.M{"uuid": uuid}).One(&r)
+	return
 }
 
-func (s *S1) deleteRecord(w http.ResponseWriter, r *http.Request) {
+type updateRequest struct {
+	Increment int
+}
+
+func (s *S1) updateRecordHandler(w http.ResponseWriter, r *http.Request) {
+	var (
+		uuid = urlParam(r, "uuid")
+		ur   = updateRequest{}
+	)
+
+	if !isValidUUID(uuid) {
+		Error(w, ErrBadRequest)
+	} else if err := json.NewDecoder(r.Body).Decode(&ur); err != nil {
+		Error(w, ErrBadRequest, err)
+	} else if rec, err := s.updateRecord(uuid, ur.Increment); err != nil {
+		Error(w, err)
+	} else {
+		JSONResponse(w, rec)
+	}
+}
+
+func (s *S1) updateRecord(uuid string, increment int) (rec *Record, err error) {
+	rec = &Record{}
+
+	change := mgo.Change{
+		Update:    bson.M{"$inc": bson.M{"num": increment}},
+		ReturnNew: true,
+	}
+	_, err = s.collection.Find(bson.M{"uuid": uuid}).Apply(change, &rec)
+	return
+}
+
+func (s *S1) deleteRecordHandler(w http.ResponseWriter, r *http.Request) {
 }

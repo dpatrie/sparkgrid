@@ -12,8 +12,8 @@ import (
 const layout = "2006-01-02 15:04:05 -0700 MST"
 
 type Record struct {
-	UUID      string
-	Num       float64 //Should we only have 2 digits???
+	UUID      string  //TODO: Would need to set some kind of unique index on this
+	Num       float64 //TODO: Should we only have 2 digits???
 	Timestamp time.Time
 }
 

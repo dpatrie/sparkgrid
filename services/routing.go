@@ -50,7 +50,13 @@ var (
 	ErrNotModified        = errors.New("not modified")
 )
 
-func Error(w http.ResponseWriter, err error) {
+func Error(w http.ResponseWriter, err error, systemErrs ...error) {
+	if len(systemErrs) > 0 {
+		for _, se := range systemErrs {
+			log.Println(se)
+		}
+	}
+
 	switch err {
 	case ErrNotFound:
 		http.Error(w, err.Error(), http.StatusNotFound)
